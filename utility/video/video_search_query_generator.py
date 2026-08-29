@@ -27,14 +27,22 @@ Note: Your response should be the response only and no extra text or data.
 def fix_json(json_str):
     # Replace typographical apostrophes with straight quotes
     json_str = json_str.replace("’", "'")
-    # Replace any incorrect quotes (e.g., mixed single and double quotes)
+    # Replace any incorrect quotes
     json_str = json_str.replace("“", "\"").replace("”", "\"").replace("‘", "\"").replace("’", "\"")
-    # Add escaping for quotes within the strings
     json_str = json_str.replace('"you didn"t"', '"you didn\'t"')
     return json_str
 
-def getVideoSearchQueriesTimed(script,captions_timed):
-    end = captions_timed[-1][0][1]
+def getVideoSearchQueriesTimed(script, captions_timed):
+    # Safety check: if captions are empty, return a safe fallback structure immediately
+    if not captions_timed or len(captions_timed) == 0:
+        print("⚠️ Warning: captions_timed is empty. Generating fallback video queries.")
+        return [[[0.0, 5.0], [script[:40] if script else "cinematic background", "stock footage", "ambient video"]]]
+
+    try:
+        end = captions_timed[-1][0][1]
+    except (IndexError, TypeError):
+        end = 5.0
+
     max_retries = 3
     retry_count = 0
     
@@ -47,7 +55,7 @@ def getVideoSearchQueriesTimed(script,captions_timed):
                     return None
                 return out
             
-            content = call_OpenAI(script,captions_timed).replace("'",'"')
+            content = call_OpenAI(script, captions_timed).replace("'", '"')
             try:
                 out = json.loads(content)
             except Exception as e:
@@ -67,7 +75,6 @@ def getVideoSearchQueriesTimed(script,captions_timed):
         return out
     except Exception as e:
         print("error in response, generating local fallback queries:", e)
-        # Stop words to filter out for cleaner search terms
         stop_words = {"the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "of", "to", "in", "on", "at", "for", "with", "as", "by", "it", "its", "we", "us", "our", "you"}
         
         fallback = []
@@ -75,16 +82,13 @@ def getVideoSearchQueriesTimed(script,captions_timed):
         while t < end:
             t_next = min(t + 4.0, end)
             
-            # Extract words spoken during this segment
             segment_words = []
             for (w_t1, w_t2), word in captions_timed:
-                # Check if word overlaps with segment
                 if w_t1 >= t and w_t1 < t_next:
                     clean = re.sub(r'[^\w\s]', '', str(word).lower()).strip()
                     if clean and clean not in stop_words:
                         segment_words.append(clean)
             
-            # Join up to 4 words to make a visual query
             query_text = " ".join(segment_words[:4])
             if not query_text:
                 query_text = "underwater deep ocean" if "ocean" in script.lower() else "stock background video"
@@ -93,7 +97,7 @@ def getVideoSearchQueriesTimed(script,captions_timed):
             t = t_next
         return fallback
 
-def call_OpenAI(script,captions_timed):
+def call_OpenAI(script, captions_timed):
     config = get_config()
     client = config.get_llm_client()
     model = config.get_llm_model()
@@ -101,8 +105,7 @@ def call_OpenAI(script,captions_timed):
     
     user_content = """Script: {}
 Timed Captions:{}
-""".format(script,"".join(map(str,captions_timed)))
-    print("Content", user_content)
+""".format(script, "".join(map(str, captions_timed)))
     
     if provider == 'gemini':
         response = client.generate_content(
@@ -110,7 +113,7 @@ Timed Captions:{}
                 {"role": "user", "parts": [{"text": f"{prompt}\n\n{user_content}"}]}
             ],
             generation_config={
-                "temperature":1.0,
+                "temperature": 1.0,
                 "top_p": 0.9,
                 "max_output_tokens": 8192,
             }
@@ -127,7 +130,7 @@ Timed Captions:{}
         )
         text = response.choices[0].message.content.strip()
     
-    text = re.sub('\s+', ' ', text)
+    text = re.sub(r'\s+', ' ', text)
     
     if text.startswith('```json'):
         text = text[7:]
@@ -136,15 +139,11 @@ Timed Captions:{}
     if text.endswith('```'):
         text = text[:-3]
     
-    # Remove "content:" prefix if present (Gemini sometimes adds this)
     if text.startswith('content:'):
         text = text[9:].strip()
-    
-    # Also check for "content =" format
     if text.startswith('content ='):
         text = text[9:].strip()
     
-    # Remove markdown code blocks if still present
     if text.startswith('```'):
         text = text[3:]
     if text.endswith('```'):
@@ -153,29 +152,21 @@ Timed Captions:{}
     text = text.strip()
     
     try:
-        parsed = json.loads(text)
-        print("Text", text)
-        log_response(LOG_TYPE_GPT,script,text)
+        json.loads(text)
+        log_response(LOG_TYPE_GPT, script, text)
         return text
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {e}")
-        print(f"Original text: {text[:200]}")
-        
-        # Try to find complete JSON by looking for patterns
         try:
-            # Find last complete array or object
             last_bracket = text.rfind(']')
             if last_bracket > 0:
                 trimmed = text[:last_bracket+1]
-                parsed = json.loads(trimmed)
-                print(f"Successfully trimmed JSON to {len(trimmed)} chars")
-                log_response(LOG_TYPE_GPT,script,trimmed)
+                json.loads(trimmed)
+                log_response(LOG_TYPE_GPT, script, trimmed)
                 return trimmed
         except Exception as e2:
             print(f"Trim attempt failed: {e2}")
         
-        # Last resort: default fallback structure
-        print("Using default fallback structure")
         default_json = '[[[0.16, 5.29], ["default background video", "stock footage", "generic scene"]], [[5.29, 10.29], ["stock video", "background footage", "video content"]]]'
         return default_json
 
@@ -189,12 +180,10 @@ def merge_empty_intervals(segments):
     while i < len(segments):
         interval, url = segments[i]
         if url is None:
-            # Find consecutive None intervals
             j = i + 1
             while j < len(segments) and segments[j][1] is None:
                 j += 1
             
-            # Merge consecutive None intervals with the previous valid URL
             if i > 0:
                 prev_interval, prev_url = merged[-1]
                 if prev_url is not None and prev_interval[1] == interval[0]:
