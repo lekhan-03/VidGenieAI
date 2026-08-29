@@ -3,3 +3,4 @@ imagemagick
 fonts-dejavu-core
 fonts-dejavu-extra
 fonts-freefont-ttf
+ghostscript

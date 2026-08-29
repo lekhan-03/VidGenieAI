@@ -1,9 +1,9 @@
-import edge_tts
-import streamlit as st
-import asyncio
 import os
 import base64
 from base64 import b64encode
+import asyncio
+import streamlit as st
+import subprocess
 
 from utility.script.script_generator import generate_script
 from utility.audio.audio_generator import generate_audio
@@ -11,9 +11,6 @@ from utility.captions.timed_captions_generator import generate_timed_captions
 from utility.video.background_video_generator import generate_video_url
 from utility.render.render_engine import get_output_media
 from utility.video.video_search_query_generator import getVideoSearchQueriesTimed, merge_empty_intervals
-import os
-import streamlit as st
-import subprocess
 
 # --- Cloud Deployment Fix: Generate .env from Streamlit Secrets ---
 if not os.path.exists('.env'):
@@ -25,14 +22,10 @@ if not os.path.exists('.env'):
         pass
 # ------------------------------------------------------------------
 
-
-
-
 # --- Fix ImageMagick Security Policy for MoviePy TextClips ---
 try:
-    policy_path = "/etc/ImageMagick-7/policy.xml" # or /etc/ImageMagick/policy.xml
+    policy_path = "/etc/ImageMagick-7/policy.xml"
     if not os.path.exists(policy_path):
-        # Try alternate path for Debian Trixie/Bullseye
         for p in ["/etc/ImageMagick-6/policy.xml", "/etc/ImageMagick-7/policy.xml"]:
             if os.path.exists(p):
                 policy_path = p
@@ -41,7 +34,6 @@ try:
     if os.path.exists(policy_path):
         with open(policy_path, "r") as f:
             content = f.read()
-        # Replace the read restriction for text files
         new_content = content.replace(
             'rights="none" pattern="@*"', 
             'rights="read|write" pattern="@*"'
@@ -50,6 +42,7 @@ try:
             subprocess.run(["sudo", "sed", "-i", 's/rights="none" pattern="@*"/rights="read|write" pattern="@*"/g', policy_path], capture_output=True)
 except Exception as e:
     print(f"Could not patch ImageMagick policy: {e}")
+
 # 1. Page Configuration
 st.set_page_config(page_title="VidGenie | AI Video Creator", page_icon="✨", layout="centered")
 
@@ -244,8 +237,6 @@ voice_mapping = {
 voice = voice_mapping.get((gender, accent), "en-US-GuyNeural")
 
 # --- MAIN LAYOUT (HERO SECTION) ---
-
-# Replace 'kiran1.jpg' with your actual logo file name
 logo_base64 = get_base64_image("kiran1.jpg")
 if logo_base64:
     img_src = f"data:image/jpeg;base64,{logo_base64}"
@@ -263,7 +254,6 @@ st.markdown(f"""
 with st.container():
     topic = st.text_area("Topic Input", height=140, label_visibility="collapsed", placeholder="Describe your video idea in detail...\nE.g., 'The history of the Samurai' or 'Top 3 hidden travel spots in Japan'")
     
-    # Inspiration Pills
     st.markdown("""
     <div>
         <span class="prompt-pill">💡 The rise of AI agents</span>
