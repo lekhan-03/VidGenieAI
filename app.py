@@ -13,6 +13,7 @@ from utility.render.render_engine import get_output_media
 from utility.video.video_search_query_generator import getVideoSearchQueriesTimed, merge_empty_intervals
 import os
 import streamlit as st
+import subprocess
 
 # --- Cloud Deployment Fix: Generate .env from Streamlit Secrets ---
 if not os.path.exists('.env'):
@@ -24,6 +25,31 @@ if not os.path.exists('.env'):
         pass
 # ------------------------------------------------------------------
 
+
+
+
+# --- Fix ImageMagick Security Policy for MoviePy TextClips ---
+try:
+    policy_path = "/etc/ImageMagick-7/policy.xml" # or /etc/ImageMagick/policy.xml
+    if not os.path.exists(policy_path):
+        # Try alternate path for Debian Trixie/Bullseye
+        for p in ["/etc/ImageMagick-6/policy.xml", "/etc/ImageMagick-7/policy.xml"]:
+            if os.path.exists(p):
+                policy_path = p
+                break
+                
+    if os.path.exists(policy_path):
+        with open(policy_path, "r") as f:
+            content = f.read()
+        # Replace the read restriction for text files
+        new_content = content.replace(
+            'rights="none" pattern="@*"', 
+            'rights="read|write" pattern="@*"'
+        )
+        if new_content != content:
+            subprocess.run(["sudo", "sed", "-i", 's/rights="none" pattern="@*"/rights="read|write" pattern="@*"/g', policy_path], capture_output=True)
+except Exception as e:
+    print(f"Could not patch ImageMagick policy: {e}")
 # 1. Page Configuration
 st.set_page_config(page_title="VidGenie | AI Video Creator", page_icon="✨", layout="centered")
 
