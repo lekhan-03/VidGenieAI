@@ -1,15 +1,20 @@
-from utility.config import get_config
-
+import whisper
 
 def generate_timed_captions(audio_filename):
-    config = get_config()
-    stt_provider = config.get_stt_provider()
+    """
+    Generates word-level timestamps using standard OpenAI Whisper 
+    to prevent hook compatibility errors on cloud environments.
+    """
+    model = whisper.load_model("base")
+    result = model.transcribe(audio_filename, word_timestamps=True)
     
-    if stt_provider == 'whisper':
-        from utility.stt.whisper_stt import generate_timed_captions as whisper_captions
-        return whisper_captions(audio_filename)
-    elif stt_provider == 'deepgram':
-        from utility.stt.deepgram_stt import generate_timed_captions as deepgram_captions
-        return deepgram_captions(audio_filename)
-    else:
-        raise ValueError(f"Unknown STT provider: {stt_provider}")
+    segments = []
+    for segment in result.get("segments", []):
+        for word in segment.get("words", []):
+            segments.append({
+                "word": word["word"].strip(),
+                "start": word["start"],
+                "end": word["end"]
+            })
+            
+    return segments
