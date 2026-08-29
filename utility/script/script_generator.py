@@ -1,11 +1,10 @@
 import json
+import re
 from utility.config import get_config
 
 
 def clean_markdown(text):
     """Remove markdown formatting from text to prevent TTS issues."""
-    import re
-    
     # Remove bold formatting (**text**)
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)
     
@@ -56,7 +55,7 @@ def generate_script(topic):
 
         Keep it brief, highly interesting, and unique.
 
-        Stictly output the script in a JSON format like below, and only provide a parsable JSON object with the key 'script'.
+        Strictly output the script in a JSON format like below, and only provide a parsable JSON object with the key 'script'.
         IMPORTANT: You must return the output STRICTLY in valid JSON format.
 
         # Output
@@ -70,9 +69,8 @@ def generate_script(topic):
         content = _call_openai_groq(client, model, topic, prompt)
     
     try:
-        # Remove any common prefix that might be added by LLMs (content:, content =, content=, content: , etc.)
         text = content
-        for prefix in ['content:', 'content =', 'content =', 'content: ', 'content=']:
+        for prefix in ['content:', 'content =', 'content: ', 'content=']:
             if text.startswith(prefix):
                 text = text[len(prefix):].strip()
                 break
@@ -89,9 +87,8 @@ def generate_script(topic):
         script = clean_markdown(script)
         return script
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error parsing script JSON: {e}")
         raise
-    return script
 
 
 def _call_openai_groq(client, model, topic, prompt):
@@ -100,7 +97,8 @@ def _call_openai_groq(client, model, topic, prompt):
         messages=[
             {"role": "system", "content": prompt},
             {"role": "user", "content": topic}
-        ]
+        ],
+        response_format={"type": "json_object"}
     )
     return response.choices[0].message.content
 
@@ -114,6 +112,7 @@ def _call_gemini(client, topic, prompt):
             "temperature": 0.7,
             "top_p": 0.8,
             "max_output_tokens": 8192,
+            "response_mime_type": "application/json",
         }
     )
     text = response.text
