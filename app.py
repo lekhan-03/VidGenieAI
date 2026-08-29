@@ -10,7 +10,18 @@ from utility.audio.audio_generator import generate_audio
 from utility.captions.timed_captions_generator import generate_timed_captions
 from utility.video.background_video_generator import generate_video_url
 from utility.render.render_engine import get_output_media
-from utility.video.video_search_query_generator import getVideoSearchQueriesTimed, merge_empty_intervals
+from utility.video.video_search_query_generator import getVideoSearchQueriesTimed, merge_empty_intervalsimport os
+import streamlit as st
+
+# --- Cloud Deployment Fix: Generate .env from Streamlit Secrets ---
+if not os.path.exists('.env'):
+    try:
+        with open('.env', 'w') as f:
+            for key, value in st.secrets.items():
+                f.write(f'{key}="{value}"\n')
+    except Exception as e:
+        pass
+# ------------------------------------------------------------------
 
 # 1. Page Configuration
 st.set_page_config(page_title="VidGenie | AI Video Creator", page_icon="✨", layout="centered")
