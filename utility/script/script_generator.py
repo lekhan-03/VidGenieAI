@@ -57,6 +57,7 @@ def generate_script(topic):
         Keep it brief, highly interesting, and unique.
 
         Stictly output the script in a JSON format like below, and only provide a parsable JSON object with the key 'script'.
+        IMPORTANT: You must return the output STRICTLY in valid JSON format.
 
         # Output
         {"script": "Here is the script ..."}
