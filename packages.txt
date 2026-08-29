@@ -1,6 +1,5 @@
 ffmpeg
 imagemagick
-fonts-libertine
 fonts-dejavu-core
+fonts-dejavu-extra
 fonts-freefont-ttf
-ttf-mscorefonts-installer
