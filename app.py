@@ -4,6 +4,7 @@ from base64 import b64encode
 import asyncio
 import streamlit as st
 import subprocess
+import concurrent.futures
 
 from utility.script.script_generator import generate_script
 from utility.audio.audio_generator import generate_audio
@@ -11,6 +12,7 @@ from utility.captions.timed_captions_generator import generate_timed_captions
 from utility.video.background_video_generator import generate_video_url
 from utility.render.render_engine import get_output_media
 from utility.video.video_search_query_generator import getVideoSearchQueriesTimed, merge_empty_intervals
+
 # --- Cloud Deployment Fix: Generate .env from Streamlit Secrets ---
 if not os.path.exists('.env'):
     try:
@@ -202,13 +204,41 @@ async def generate_video_from_topic(topic, voice):
 
         st.write("🎞️ Rendering final composition...")
         if background_video_urls:
-            output_video = get_output_media(SAMPLE_FILE_NAME, timed_captions, background_video_urls, VIDEO_SERVER)
+            # Wrap get_output_media in a separate thread to prevent Streamlit UI deadlock
+            loop = asyncio.get_event_loop()
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                output_video = await loop.run_in_executor(
+                    pool, 
+                    get_output_media, 
+                    SAMPLE_FILE_NAME, 
+                    timed_captions, 
+                    background_video_urls, 
+                    VIDEO_SERVER
+                )
+            
             status.update(label="Video Complete!", state="complete", expanded=False)
             
             with st.expander("📄 Review Script"):
                 st.write(response)
+                
+            # Load video into base64 in the browser
             display_video(output_video)
             st.balloons()
+            
+            # --- DATA ERASURE BLOCK ---
+            st.write("🧹 Erasing local render data...")
+            files_to_delete = [
+                SAMPLE_FILE_NAME, 
+                output_video, 
+                "pipeline_checkpoint.json"
+            ]
+            
+            for file_path in files_to_delete:
+                if os.path.exists(file_path):
+                    try:
+                        os.remove(file_path)
+                    except Exception as e:
+                        print(f"Could not delete {file_path}: {e}")
         else:
             status.update(label="Rendering failed.", state="error")
 
@@ -263,6 +293,15 @@ with st.container():
 
     if st.button("✨ Generate Video"):
         if topic.strip():
-            asyncio.run(generate_video_from_topic(topic, voice))
+            # Safely manage the async event loop within Streamlit's thread
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_closed():
+                    raise RuntimeError
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            
+            loop.run_until_complete(generate_video_from_topic(topic, voice))
         else:
             st.warning("⚠️ Please provide a topic to generate a video.")
