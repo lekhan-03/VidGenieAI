@@ -111,7 +111,7 @@ def get_output_media(audio_file_path, timed_captions, background_video_data, vid
             else: # Default to bottom_center
                 position = ["center", 1000]
 
-            text_clip = TextClip(txt=text, font=font_face, fontsize=font_size, color=font_color, stroke_width=stroke_width, stroke_color=stroke_color, method="label")
+            text_clip = TextClip(txt=text, font=font_face, fontsize=font_size, color=font_color, stroke_width=stroke_width, stroke_color=stroke_color, method="caption")
             text_clip = text_clip.set_start(t1)
             text_clip = text_clip.set_end(t2)
             text_clip = text_clip.set_position(position)
