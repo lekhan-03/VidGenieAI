@@ -4,8 +4,10 @@ import tempfile
 import zipfile
 import platform
 import subprocess
+import numpy as np
+from PIL import Image, ImageDraw, ImageFont
 from moviepy.editor import (AudioFileClip, CompositeVideoClip, CompositeAudioClip, ImageClip,
-                              TextClip, VideoFileClip)
+                            VideoFileClip)
 from moviepy.audio.fx.audio_loop import audio_loop
 from moviepy.audio.fx.audio_normalize import audio_normalize
 import requests
@@ -46,12 +48,6 @@ def get_output_media(audio_file_path, timed_captions, background_video_data, vid
         )
 
     OUTPUT_FILE_NAME = "rendered_video.mp4"
-    magick_path = get_program_path("magick")
-    print(magick_path)
-    if magick_path:
-        os.environ['IMAGEMAGICK_BINARY'] = magick_path
-    else:
-        os.environ['IMAGEMAGICK_BINARY'] = '/usr/bin/convert'
     
     visual_clips = []
     for (t1, t2), video_url in background_video_data:
@@ -85,19 +81,15 @@ def get_output_media(audio_file_path, timed_captions, background_video_data, vid
             print(f"[RenderEngine] Error loading/mixing background music: {e}")
 
     
-    # Only add captions if enabled in config
+    # Only add captions if enabled in config (using pure Python Pillow to bypass ImageMagick policy restrictions)
     if config.get_captions_enabled():
         for (t1, t2), text in timed_captions:
-            # Get caption styling from config
             font_size = config.get_caption_font_size()
             font_color = config.get_caption_font_color()
             stroke_width = config.get_caption_stroke_width()
             stroke_color = config.get_caption_stroke_color()
-            font_face = "DejaVu-Sans-Bold"
             caption_position = config.get_caption_position()
 
-            # Convert caption position string to MoviePy format
-            # For 1080p video: top=100, center=540, bottom=1000
             if caption_position == 'bottom_center':
                 position = ["center", 1000]
             elif caption_position == 'bottom_left':
@@ -108,13 +100,33 @@ def get_output_media(audio_file_path, timed_captions, background_video_data, vid
                 position = ["center", 100]
             elif caption_position == 'center':
                 position = ["center", 540]
-            else: # Default to bottom_center
+            else:
                 position = ["center", 1000]
 
-            text_clip = TextClip(txt=text, font=font_face, fontsize=font_size, color=font_color, stroke_width=stroke_width, stroke_color=stroke_color, method="caption")
-            text_clip = text_clip.set_start(t1)
-            text_clip = text_clip.set_end(t2)
-            text_clip = text_clip.set_position(position)
+            # Generate caption overlay using Pillow
+            img_width, img_height = 1080, 200
+            img = Image.new("RGBA", (img_width, img_height), (0, 0, 0, 0))
+            draw = ImageDraw.Draw(img)
+            
+            try:
+                font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
+            except IOError:
+                font = ImageFont.load_default()
+                
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            x = (img_width - text_width) / 2
+            y = (img_height - text_height) / 2
+            
+            if stroke_width > 0:
+                for adj_x in range(-stroke_width, stroke_width + 1):
+                    for adj_y in range(-stroke_width, stroke_width + 1):
+                        draw.text((x + adj_x, y + adj_y), text, font=font, fill=stroke_color)
+                        
+            draw.text((x, y), text, font=font, fill=font_color)
+            
+            text_clip = ImageClip(np.array(img)).set_start(t1).set_end(t2).set_position(position)
             visual_clips.append(text_clip)
     
     video = CompositeVideoClip(visual_clips)
@@ -129,6 +141,7 @@ def get_output_media(audio_file_path, timed_captions, background_video_data, vid
     # Clean up downloaded files
     for (t1, t2), video_url in background_video_data:
         video_filename = tempfile.NamedTemporaryFile(delete=False).name
-        os.remove(video_filename)
+        if os.path.exists(video_filename):
+            os.remove(video_filename)
 
     return OUTPUT_FILE_NAME
