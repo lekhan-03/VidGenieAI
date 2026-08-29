@@ -93,7 +93,7 @@ def get_output_media(audio_file_path, timed_captions, background_video_data, vid
             font_color = config.get_caption_font_color()
             stroke_width = config.get_caption_stroke_width()
             stroke_color = config.get_caption_stroke_color()
-            font_face = config.get_caption_font_face()
+            font_face = "DejaVu-Sans-Bold"
             caption_position = config.get_caption_position()
 
             # Convert caption position string to MoviePy format
