@@ -45,8 +45,8 @@ No editing software. No manual voice recording. Just a topic and a click.
 ### 1. Clone the repo
 
 ```bash
-git clone https://github.com/SamurAIGPT/Text-To-Video-AI
-cd Text-To-Video-AI
+git clone https://github.com/lekhan-03/VidGenieAI
+cd VidGenieAI
 ```
 
 ### 2. Install system & Python dependencies
